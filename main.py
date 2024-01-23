@@ -1,16 +1,75 @@
-# This is a sample Python script.
+import pathlib
+from b3dmlib.FilterTileSet import FilterTileSet
+import urllib.request
+import requests
 
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+from meshexchange.SimplePolygon import SimplePolygon
+from meshexchange.Surface.Extent import Extent
+from shapely import Polygon
 
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
+class ModelCutter:
+    def __init__(self, src, dst):
+        self.src = src
+        self.dst = dst
+        self.main_polygon = None
+        # @todo: this prefix should be retrived from the self.src
+        self.path_prefix = r'\3dtiles\1'
+
+    @staticmethod
+    def download_file(uri, file_name):
+        mp3file = urllib.request.urlopen(uri)
+        with open(file_name, 'wb') as output:
+            output.write(mp3file.read())
+
+    @staticmethod
+    def cut_download_file(uri, file_name, polygon):
+        r = requests.post('http://localhost:8001/cutter/cut',
+                          json={"uri": uri, 'polygon': polygon})
+        with open(file_name, 'wb') as output:
+            output.write(r.content)
+
+    def processTile(self, data):
+
+        output_directory = str(data['src'].parent).replace(self.path_prefix, self.dst).replace('\\', '/')
+        osgb_dir = pathlib.Path(output_directory)
+        if not osgb_dir.exists():
+            osgb_dir.mkdir(parents=True, exist_ok=True)
+        file_name = output_directory + '/' + str(data['src'].name)
+        uri = str(data['src']).replace(self.path_prefix, self.src).replace('\\', '/')
+        tile_extent = Extent.fromRad(data['extent']).transform('32636')
+        tile_polygon = Polygon(tile_extent.asPolygon())
+        relation = self.main_polygon.relation(tile_polygon)
+
+        if relation == 0:  # outside
+            return False, False
+        elif relation == 1:  # no completely inside
+            ModelCutter.cut_download_file(uri, file_name, self.main_polygon.coords())
+            return True, True
+        elif relation == 2:  # contains
+            ModelCutter.download_file(uri, file_name)
+            return True, True
+        else:
+            print('error')
+            return False, False
+
+    def cut(self, polygon_coords):
+        # @todo: verify polygon
+        self.main_polygon = SimplePolygon.fromCoords(polygon_coords, '32636')
+        w = FilterTileSet(self.src, self.dst)
+        w.processTileSet('', 'tileset.json', self.processTile)
 
 
-# Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    print_hi('PyCharm')
+    mc = ModelCutter(src="http://localhost:8000/3dtiles/1",
+                     dst=r"c:\temp\copy_1_v5")
+    # e = Extent(34.42683387728148, 31.503369760659307, 34.51669363968577, 31.56028682505906, "4326")
 
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+    e = Extent.fromRad([0.60086160219568729435, 0.54983752779672290245, 0.603998299633716762, 0.55182430814541350017])
+    print(e.asArray())
+    print(e.setWithDimensions(e.x_min, e.y_min, e.getWidth() / 2, e.getHeight() / 2))
+    polygon = e.transform('32636').asPolygon()
+    print(polygon)
+    mc.cut(polygon)
+
+    print('Done')
