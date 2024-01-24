@@ -80,9 +80,13 @@ class FilterTileSet:
                         uri = self.src + tile_uri
                     else:
                         uri = self.src + '/' + tile_uri
-                    r = requests.head(uri)
-                    if r.status_code == 200:
-                        p = pathlib.Path(urlparse(uri).path)
+
+                    # assuming the link is valid for faster download
+                    p = pathlib.Path(urlparse(uri).path)
+
+                    # r = requests.head(uri)
+                    # if r.status_code == 200:
+                    #     p = pathlib.Path(urlparse(uri).path)
                 else:
                     if not path.exists(self.src + '/' + tile_uri):
                         print("WARNING: b3dm file not found:", tile_uri)

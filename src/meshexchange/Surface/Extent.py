@@ -7,12 +7,15 @@ class Extent:
     def __init__(self, x_min=0, y_min=0, x_max=0, y_max=0, epsg="4326"):
         self.set(x_min, y_min, x_max, y_max, epsg)
 
+    def centroid(self):
+        return [ self.x_min+(self.x_max - self.x_min)/2, self.y_min+(self.y_max - self.y_min)/2]
+
     def buffer(self, b):
         return Extent(self.x_min - b, self.y_min - b, self.x_max + b, self.y_max + b, self.epsg)
 
     def buffer_procent(self, p):
-        bx = (self.x_max-self.x_min)*p
-        by = (self.y_max-self.y_min)*p
+        bx = (self.x_max - self.x_min) * p
+        by = (self.y_max - self.y_min) * p
         return Extent(self.x_min - bx, self.y_min - by, self.x_max + bx, self.y_max + by, self.epsg)
 
     @staticmethod

@@ -62,14 +62,10 @@ class ModelCutter:
 
 if __name__ == '__main__':
     mc = ModelCutter(src="http://localhost:8000/3dtiles/1",
-                     dst=r"c:\temp\copy_1_v5")
-    # e = Extent(34.42683387728148, 31.503369760659307, 34.51669363968577, 31.56028682505906, "4326")
-
+                     dst=r"c:\temp\copy_1_v6")
     e = Extent.fromRad([0.60086160219568729435, 0.54983752779672290245, 0.603998299633716762, 0.55182430814541350017])
-    print(e.asArray())
-    print(e.setWithDimensions(e.x_min, e.y_min, e.getWidth() / 2, e.getHeight() / 2))
-    polygon = e.transform('32636').asPolygon()
-    print(polygon)
+    extent_utm = e.transform('32636')
+    center = extent_utm.centroid()
+    polygon = Extent.fromUtm36Dimensions(center[0], center[1], 1000, 1000).asPolygon()
     mc.cut(polygon)
-
     print('Done')

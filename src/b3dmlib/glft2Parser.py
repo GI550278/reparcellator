@@ -94,17 +94,31 @@ class glft2Parser:
 
         mesh = DracoPy.decode(bytes(compressed_data))
 
-        parsed_data = self.mesh_to_parsed_data(mesh)
+        parsed_data = {}
         parsed_data['material'] = self.gltf.materials[primitive.material]
+        parsed_data = self.mesh_to_parsed_data(mesh, parsed_data)
 
         return parsed_data
 
-    def mesh_to_parsed_data(self, mesh):
-        parsed_data = {}
+    def mesh_to_parsed_data(self, mesh, parsed_data):
+
+        if self.Y_UP:
+            parsed_data['vertices'] = list(map(lambda x: [x[0], -x[2], x[1]], mesh.points))
+        else:
+            parsed_data['vertices'] = list(map(list, mesh.points))
+        parsed_data['indices'] = list(map(list, mesh.faces))
+
         if mesh.tex_coord is None:
             # no image and texture
             parsed_data['imageIndex'] = None
             parsed_data['texCoords'] = None
+            return parsed_data
+
+        if 'material' not in parsed_data:
+            # no image and texture
+            parsed_data['imageIndex'] = None
+            parsed_data['texCoords'] = None
+            print("No material")
             return parsed_data
 
         if parsed_data['material'].pbrMetallicRoughness.baseColorTexture is None:
@@ -114,13 +128,7 @@ class glft2Parser:
             print("No material")
             return parsed_data
 
-        if self.Y_UP:
-            parsed_data['vertices'] = list(map(lambda x: [x[0], -x[2], x[1]], mesh.points))
-        else:
-            parsed_data['vertices'] = list(map(list, mesh.points))
-        parsed_data['indices'] = list(map(list, mesh.faces))
         tex_coords = list(map(list, mesh.tex_coord))
-
         texture_index = parsed_data['material'].pbrMetallicRoughness.baseColorTexture.index
         texture = self.gltf.textures[texture_index]
         if texture.source is None:
