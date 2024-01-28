@@ -7,6 +7,10 @@ import requests
 from os import path
 from urllib.parse import urlparse
 
+from shapely import Polygon
+
+from meshexchange.Surface.Extent import Extent
+
 
 class FilterTileSet:
     def __init__(self, src, dst):
@@ -19,7 +23,9 @@ class FilterTileSet:
             output_directory.mkdir(parents=True, exist_ok=True)
 
         self.tileset = None
-        self.mainQueue = Queue()
+        self.main_polygon = None
+        self.tileQueue = Queue()
+        self.tilesetQueue = Queue()
 
     def initTileSet(self, tilesetData):
         self.tileset = {}
@@ -43,7 +49,7 @@ class FilterTileSet:
                 return content["boundingVolume"]["region"]
         return None
 
-    def printContent(self, obj, root_dir, tile_callback, tileset_callback, level):
+    def printContent(self, obj, root_dir, level):
         node = {}
         on_children = True
         for key in ['boundingVolume', 'geometricError', 'refine']:
@@ -99,26 +105,40 @@ class FilterTileSet:
                     if not output_directory.exists():
                         output_directory.mkdir(parents=True, exist_ok=True)
 
-                    result, on_children = tile_callback(
-                        {'src': p, 'data_directory': q, 'extent': region, 'level': level})
+                    ##########################################
+                    tile_extent = Extent.fromRad(region).transform('32636')
+                    tile_polygon = Polygon(tile_extent.asPolygon())
+
+                    if self.main_polygon is None:
+                        relation = 2
+                    else:
+                        relation = self.main_polygon.relation(tile_polygon)
+
+                    if relation == 0:
+                        result, on_children = False, False
+                    else:
+                        result, on_children = True, True
+                    ###########################################
+                    self.tileQueue.put(
+                        {'src': p, 'data_directory': q, 'extent': region, 'level': level, 'relation': relation})
                     if result:
                         node['content'] = obj['content']
             elif link.endswith('.json'):
                 tileset = root_dir + '/' + link
                 n = tileset.rfind('/')
-                self.processTileSet(tileset[:n], tileset[n + 1:].strip(), tile_callback, tileset_callback, level + 1)
+                self.processTileSet(tileset[:n], tileset[n + 1:].strip(), level + 1)
                 node['content'] = obj['content']
                 return node
 
         if 'children' in obj and on_children:
             node['children'] = []
             for child in obj['children']:
-                filtered_content = self.printContent(child, root_dir, tile_callback, tileset_callback, level + 1)
+                filtered_content = self.printContent(child, root_dir, level + 1)
                 if filtered_content is not None:
                     node['children'].append(filtered_content)
         return node
 
-    def processTileSet(self, root_dir, tileset_name, tile_callback, tileset_callback, level=0):
+    def processTileSet(self, root_dir, tileset_name, level=0):
 
         if len(root_dir) > 0:
             if root_dir[0] == '/':
@@ -148,7 +168,7 @@ class FilterTileSet:
             except:
                 return None
 
-        filteredContent = self.printContent(tilesetData['root'], root_dir, tile_callback, tileset_callback, level)
+        filteredContent = self.printContent(tilesetData['root'], root_dir, level)
 
         tileset = {}
         for key, value in tilesetData.items():
@@ -164,7 +184,8 @@ class FilterTileSet:
                 output_tileset = self.dst + '/' + root_dir + '/' + tileset_name
         else:
             output_tileset = self.dst + '/' + tileset_name
-        tileset_callback(tileset, output_tileset)
+
+        self.tilesetQueue.put({'tileset': tileset, 'path': output_tileset})
 
     def getRootInTileSet(self, root_dir, tileset):
         p = self.src
