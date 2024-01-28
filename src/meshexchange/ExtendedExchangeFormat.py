@@ -1,6 +1,7 @@
 import copy
 
 from pyproj import Transformer
+from shapely import MultiPoint, convex_hull
 
 
 class ExtendedExchangeFormat:
@@ -89,6 +90,25 @@ class ExtendedExchangeFormat:
 
         self.extent = [e_min, e_max]
         return self.extent
+
+    def simple_convex_hull(self):
+        """
+        2d convex hull
+        warning this method ignores z coordinates
+        """
+        all_vertices = []
+        for part in self.parts:
+            for subpart in part['subparts']:
+                all_vertices.extend([[x[0],x[1]] for x in subpart['vertices']])
+
+        return convex_hull(MultiPoint(all_vertices))
+
+    def calculateNumberOfVertices(self):
+        count = 0
+        for part in self.parts:
+            for subpart in part['subparts']:
+                count += len(subpart['vertices'])
+        return count
 
     def getExtent(self):
         if self.extent is None:

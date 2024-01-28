@@ -1,10 +1,11 @@
 import json
+import logging
 import pathlib
-import shutil
-from os import path
-from urllib.parse import urlparse
+from multiprocessing import Queue
 
 import requests
+from os import path
+from urllib.parse import urlparse
 
 
 class FilterTileSet:
@@ -18,13 +19,13 @@ class FilterTileSet:
             output_directory.mkdir(parents=True, exist_ok=True)
 
         self.tileset = None
+        self.mainQueue = Queue()
 
     def initTileSet(self, tilesetData):
         self.tileset = {}
         for key, value in tilesetData.items():
             if key == "root":
                 self.tileset[key] = {}
-                # rootData = tilesetData[key]
             else:
                 self.tileset[key] = tilesetData[key]
 
@@ -41,9 +42,8 @@ class FilterTileSet:
             if "region" in content["boundingVolume"]:
                 return content["boundingVolume"]["region"]
         return None
-        # raise Exception('missing region')
 
-    def printContent(self, obj, root_dir, callback):
+    def printContent(self, obj, root_dir, tile_callback, tileset_callback, level):
         node = {}
         on_children = True
         for key in ['boundingVolume', 'geometricError', 'refine']:
@@ -51,7 +51,7 @@ class FilterTileSet:
                 node[key] = obj[key]
 
         if 'content' not in obj:
-            print("no content")
+            logging.info("no content in child, skipping")
         else:
             region = self.getRegion(obj['content'])
             if region is None:
@@ -89,8 +89,7 @@ class FilterTileSet:
                     #     p = pathlib.Path(urlparse(uri).path)
                 else:
                     if not path.exists(self.src + '/' + tile_uri):
-                        print("WARNING: b3dm file not found:", tile_uri)
-                        # return
+                        logging.warning(f"b3dm file not found: {tile_uri}")
                     else:
                         p = pathlib.Path(self.src + '/' + tile_uri)
 
@@ -100,27 +99,26 @@ class FilterTileSet:
                     if not output_directory.exists():
                         output_directory.mkdir(parents=True, exist_ok=True)
 
-                    # shutil.copy(p, q)
-                    result, on_children = callback({'src': p, 'data_directory': q, 'extent': region})
+                    result, on_children = tile_callback(
+                        {'src': p, 'data_directory': q, 'extent': region, 'level': level})
                     if result:
                         node['content'] = obj['content']
             elif link.endswith('.json'):
-                print(link + " JSON")
                 tileset = root_dir + '/' + link
                 n = tileset.rfind('/')
-                self.processTileSet(tileset[:n], tileset[n + 1:].strip(), callback)
+                self.processTileSet(tileset[:n], tileset[n + 1:].strip(), tile_callback, tileset_callback, level + 1)
                 node['content'] = obj['content']
                 return node
 
         if 'children' in obj and on_children:
             node['children'] = []
             for child in obj['children']:
-                filtered_content = self.printContent(child, root_dir, callback)
+                filtered_content = self.printContent(child, root_dir, tile_callback, tileset_callback, level + 1)
                 if filtered_content is not None:
                     node['children'].append(filtered_content)
         return node
 
-    def processTileSet(self, root_dir, tileset_name, callback):
+    def processTileSet(self, root_dir, tileset_name, tile_callback, tileset_callback, level=0):
 
         if len(root_dir) > 0:
             if root_dir[0] == '/':
@@ -141,7 +139,7 @@ class FilterTileSet:
                 return None
         else:
             if not path.exists(tileset_path):
-                print("WARNING: tileset file not found:", tileset_path)
+                logging.warning(f"tileset file not found: {tileset_path}")
                 return None
 
             try:
@@ -150,7 +148,7 @@ class FilterTileSet:
             except:
                 return None
 
-        filteredContent = self.printContent(tilesetData['root'], root_dir, callback)
+        filteredContent = self.printContent(tilesetData['root'], root_dir, tile_callback, tileset_callback, level)
 
         tileset = {}
         for key, value in tilesetData.items():
@@ -166,9 +164,7 @@ class FilterTileSet:
                 output_tileset = self.dst + '/' + root_dir + '/' + tileset_name
         else:
             output_tileset = self.dst + '/' + tileset_name
-
-        with open(output_tileset, 'w') as f:
-            json.dump(tileset, f)
+        tileset_callback(tileset, output_tileset)
 
     def getRootInTileSet(self, root_dir, tileset):
         p = self.src
@@ -190,7 +186,7 @@ class FilterTileSet:
                 return None
         else:
             if not path.exists(tileset_path):
-                print("WARNING: tileset file not found:", tileset_path)
+                logging.warning(f"tileset file not found: {tileset_path}")
                 return None
 
             try:
@@ -201,14 +197,15 @@ class FilterTileSet:
 
         obj = tilesetData['root']
         if 'content' not in obj:
+            logging.info("No content in tileset root, skipping")
             return ""
         else:
             link = self.getLink(obj['content'])
             if link.endswith('.b3dm'):
                 try:
                     root = str(tileset_file.with_name(link))
-                except:
-                    print('Error could not find :' + link)
+                except Exception as e:
+                    logging.error('Failed to find b3dm(%s): %s', link, e)
                     return ""
                 return root
             elif link.endswith('.json'):

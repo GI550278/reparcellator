@@ -118,6 +118,9 @@ class B3DMModule:
     def b3dmToExtendedExchange(self, filename, imagePath="", imageFile="", writeHint=0, Y_UP=False):
         bf = BinaryFile(filename)
         payload = bf.read_all()
+        return self.b3dmPayloadToExtendedExchange(payload, imagePath, imageFile, writeHint, Y_UP)
+
+    def b3dmPayloadToExtendedExchange(self, payload, imagePath="", imageFile="", writeHint=0, Y_UP=False):
         dsr = DataStreamReader(payload)
 
         magic_value = dsr.readStringKnownSize(4)
