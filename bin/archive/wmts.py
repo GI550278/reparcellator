@@ -45,7 +45,7 @@ gdf2 = gpd.GeoDataFrame.from_file(path)
 gdf2.crs = f"EPSG:32636"
 # print(gdf.head())
 # the correct form:
-subset = gdf2[gdf2.geometry.intersects(p)]
+subset = gdf2[gdf2.geometry.intersects(p) or gdf2.geometry.contains(p)]
 # - subset = gdf2[gdf2.geometry.within(p)]
 # - subset = gdf2.sjoin(gdf)
 # print(subset.head())

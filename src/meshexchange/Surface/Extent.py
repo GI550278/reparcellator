@@ -3,12 +3,16 @@ import math
 from pyproj import Transformer
 
 
+def average(a, b):
+    return (a + b) / 2
+
+
 class Extent:
     def __init__(self, x_min=0, y_min=0, x_max=0, y_max=0, epsg="4326"):
         self.set(x_min, y_min, x_max, y_max, epsg)
 
     def centroid(self):
-        return [ self.x_min+(self.x_max - self.x_min)/2, self.y_min+(self.y_max - self.y_min)/2]
+        return [self.x_min + (self.x_max - self.x_min) / 2, self.y_min + (self.y_max - self.y_min) / 2]
 
     def buffer(self, b):
         return Extent(self.x_min - b, self.y_min - b, self.x_max + b, self.y_max + b, self.epsg)
@@ -102,6 +106,24 @@ class Extent:
             ymax = max(bottom_left[1 - k], top_right[1 - k])
 
             return Extent(xmin, ymin, xmax, ymax, epsg)
+
+    def smart_transform(self, epsg='32636'):
+        if not (self.epsg == '4326' and epsg == '32636'):
+            raise Exception('cannot smart transform, wrong epsg')
+
+        transformer = Transformer.from_crs(f"epsg:{self.epsg}", f"epsg:{epsg}")
+        bottom_left = list(transformer.transform(self.y_min, self.x_min))
+        top_right = list(transformer.transform(self.y_max, self.x_max))
+        top_left = list(transformer.transform(self.y_max, self.x_min))
+        bottom_right = list(transformer.transform(self.y_min, self.x_max))
+        k = 0
+        xmin = average(top_left[k], bottom_left[k])
+        xmax = average(top_right[k], bottom_right[k])
+        k = 1
+        ymin = average(bottom_right[k], bottom_left[k])
+        ymax = average(top_right[k], top_left[k])
+
+        return Extent(xmin, ymin, xmax, ymax, epsg)
 
     def isIn(self, x, y):
         if self.x_max <= x:

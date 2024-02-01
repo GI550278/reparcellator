@@ -5,12 +5,15 @@ from osgeo import osr
 import math
 import os
 
-from b3dmlib.WalkOnTileSet import WalkOnTileSet
+from b3dmlib.FilterTileSet import FilterTileSet
 
-from bin.FilterTileSet import FilterTileSet
-from bin.ReadTileSet import ReadTileSet
 
-os.environ['GDAL_DATA'] = r'C:\Users\sguya\PycharmProjects\ToOSGB\venv\Lib\site-packages\osgeo\data\gdal'
+# from b3dmlib.WalkOnTileSet import WalkOnTileSet
+
+# from bin.FilterTileSet import FilterTileSet
+# from bin.ReadTileSet import ReadTileSet
+
+os.environ['GDAL_DATA'] = r'C:\Users\sguya\PycharmProjects\reparcellator\venv\Lib\site-packages\osgeo\data\gdal'
 
 
 class IndexShapeWriter:
@@ -65,7 +68,7 @@ class IndexShapeWriter:
 
 
 i = IndexShapeWriter()
-i.createDataSource(r'c:\temp\copy_1_v8_shp')
+i.createDataSource(r'c:\temp\index_shp.shp')
 
 cnt = 0
 
@@ -82,11 +85,13 @@ def foo(data):
     print(cnt, name)
     cnt += 1
 
-    if cnt>100:
+    if cnt > 100:
         return False, False
     return True, True
 
-src = r"C:\temp\copy_1_v8"
+
+src = r"C:\Users\sguya\Downloads\cesium-starter-app-master\public\wmts_test_v1\flip_yz_v5"
+# src = r"C:\temp\copy_1_v8"
 # src = r"O:\Data\Vricon\Vricon_Lebanon_2023\Lebanon_1\vricon_3d_surface_model_3dtiles_1\data\unzip"
 # src = r"C:\temp\vricon_small_sample"
 tileset = r"tileset.json"
