@@ -55,7 +55,7 @@ class ModelPrinter:
                 continue
             elif msg == "DONE":
                 break
-            self.ti.append(msg['uri'], msg['coords'], density=msg['density'], level=msg['level'])
+            self.ti.append(msg['uri'], msg['coords'], area=msg['area'], level=msg['level'])
 
     def print_tile(self, data):
         # print(data)
@@ -74,26 +74,28 @@ class ModelPrinter:
         if relation == 0:
             pass
         elif relation == 2 or relation == 1:
-            b = B3DMModule()
-            r = requests.get(uri)
-            if r.status_code == 200:
-                # print('IN', uri)
-                ee = b.b3dmPayloadToExtendedExchange(bytearray(r.content), Y_UP=True)
-                num = ee.calculateNumberOfVertices()
-                exact_extent = True
-                if exact_extent:
-                    sp = Splitter(ee)
-                    ext = sp.ee_utm.calculateExtent()
-                    extent = Extent(ext[0][0], ext[0][1], ext[1][0], ext[1][1], '32636')
-                    # pol = sp.ee_utm.simple_convex_hull()
-                    # coords = pol.exterior.coords
-                    coords = extent.asPolygon()
-                else:
-                    coords = tile_extent.asPolygon()
-                density = num / tile_extent.getArea()
+            try:
+                b = B3DMModule()
+                r = requests.get(uri)
+                if r.status_code == 200:
+                    # print('IN', uri)
+                    ee = b.b3dmPayloadToExtendedExchange(bytearray(r.content), Y_UP=True)
+                    # num = ee.calculateNumberOfVertices()
+                    exact_extent = True
+                    if exact_extent:
+                        sp = Splitter(ee)
+                        ext = sp.ee_utm.calculateExtent()
+                        extent = Extent(ext[0][0], ext[0][1], ext[1][0], ext[1][1], '32636')
+                        # pol = sp.ee_utm.simple_convex_hull()
+                        # coords = pol.exterior.coords
+                        coords = extent.asPolygon()
+                    else:
+                        coords = tile_extent.asPolygon()
+                    area = tile_extent.getArea()
 
-                self.indexQueue.put({'uri': uri, 'coords': coords, 'density': density, 'level': data['level']})
-
+                    self.indexQueue.put({'uri': uri, 'coords': coords, 'area': area, 'level': data['level']})
+            except Exception as e:
+                print(f'Failed to index tile [{uri}]')
             # ModelPrinter.download_file(uri, file_name)
             # b = B3DMModule()
             # ee = b.b3dmToExtendedExchange(file_name, self.dst + '/image.jpg', 'image.jpg', 0)

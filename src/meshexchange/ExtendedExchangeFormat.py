@@ -106,8 +106,10 @@ class ExtendedExchangeFormat:
     def calculateNumberOfVertices(self):
         count = 0
         for part in self.parts:
-            for subpart in part['subparts']:
-                count += len(subpart['vertices'])
+            if 'subparts' in part:
+                for subpart in part['subparts']:
+                    if 'vertices' in subpart:
+                        count += len(subpart['vertices'])
         return count
 
     def getExtent(self):
