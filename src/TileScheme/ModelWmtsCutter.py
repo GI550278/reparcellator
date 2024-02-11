@@ -73,7 +73,7 @@ class ModelWmtsCutter:
         payload = {"tiles": tiles,
                    "polygon": list(tile.polygon.exterior.coords),
                    "format": format}
-        r = requests.post('http://localhost:8001/editor/combine',
+        r = requests.post('http://localhost:8004/editor/combine',
                           json=payload)
         with open(file_name + f'.{format}', 'wb') as output:
             output.write(r.content)

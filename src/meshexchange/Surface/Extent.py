@@ -161,3 +161,10 @@ class Extent:
 
         return Extent(max(self.x_min, e.x_min), max(self.y_min, e.y_min),
                       min(self.x_max, e.x_max), min(self.y_max, e.y_max), e.epsg)
+
+    def union(self, e):
+        if not self.epsg == e.epsg:
+            return None
+
+        return Extent(min(self.x_min, e.x_min), min(self.y_min, e.y_min),
+                      max(self.x_max, e.x_max), max(self.y_max, e.y_max), e.epsg)
