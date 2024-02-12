@@ -46,6 +46,8 @@ class ExtendedExchangeFormat:
             new_part = {'subparts': []}
             for subpart in part['subparts']:
                 new_subpart = {}
+                if subpart is None:
+                    continue
                 for key in subpart.keys():
                     if not key == 'vertices':
                         new_subpart[key] = copy.deepcopy(subpart[key])
