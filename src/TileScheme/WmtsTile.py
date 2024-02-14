@@ -1,3 +1,5 @@
+from math import floor
+
 from shapely import Polygon
 
 from TileScheme.WorldCRS84Quad import WorldCRS84Quad
@@ -23,4 +25,31 @@ class WmtsTile:
         yield WmtsTile(2 * x + 1, 2 * y + 1, level)
 
     def getName(self):
-        return f"{self.x}_{self.y}_{self.z}"
+        return f"{self.z}_{self.x}_{self.y}"
+
+    def getFullPath(self, version=0, extension='b3dm'):
+        if self.z < 7:
+            return None
+        directory = ''
+        level = 7
+        while level < self.z:
+            directory += f'/{self.getNameAtLevel(level)}'
+            level += 4
+
+        directory += f'/{self.getName()}/{self.getName()}_{version}.{extension}'
+        return directory
+
+    def getCoordsAtLevel(self, level):
+        x, y, z = self.x, self.y, self.z
+        while z >= level:
+            if z == level:
+                return x, y, z
+
+            x1 = floor(x / 2)
+            y1 = floor(y / 2)
+            z1 = z - 1
+            x, y, z = x1, y1, z1
+
+    def getNameAtLevel(self, level):
+        x, y, z = self.getCoordsAtLevel(level)
+        return f"{z}_{x}_{y}"

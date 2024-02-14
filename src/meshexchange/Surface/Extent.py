@@ -116,12 +116,19 @@ class Extent:
         top_right = list(transformer.transform(self.y_max, self.x_max))
         top_left = list(transformer.transform(self.y_max, self.x_min))
         bottom_right = list(transformer.transform(self.y_min, self.x_max))
+        # k = 0
+        # xmin = average(top_left[k], bottom_left[k])
+        # xmax = average(top_right[k], bottom_right[k])
+        # k = 1
+        # ymin = average(bottom_right[k], bottom_left[k])
+        # ymax = average(top_right[k], top_left[k])
+
         k = 0
-        xmin = average(top_left[k], bottom_left[k])
-        xmax = average(top_right[k], bottom_right[k])
+        xmin = min(top_left[k], bottom_left[k])
+        xmax = max(top_right[k], bottom_right[k])
         k = 1
-        ymin = average(bottom_right[k], bottom_left[k])
-        ymax = average(top_right[k], top_left[k])
+        ymin = min(bottom_right[k], bottom_left[k])
+        ymax = max(top_right[k], top_left[k])
 
         return Extent(xmin, ymin, xmax, ymax, epsg)
 

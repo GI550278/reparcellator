@@ -1,5 +1,8 @@
+from pathlib import Path
+
 import geopandas as gpd
 import requests
+from shapely import intersection
 
 from TileScheme.WmtsTile import WmtsTile
 from TileScheme.ranges import ranges
@@ -56,7 +59,7 @@ class ModelWmtsCutter:
                 target_level -= 1
         return None
 
-    def cut(self, x, y, z, file_name):
+    def cut(self, x, y, z, file_name, boundary=None):
         tile = WmtsTile(x, y, z)
         if self.level_map is None:
             self.calculate_level_map()
@@ -68,12 +71,21 @@ class ModelWmtsCutter:
             t = {"uri": relevant_tiles.path.iat[k],
                  "polygon": []}  # list(relevant_tiles.geometry.iat[k].exterior.coords)}
             tiles.append(t)
-
+        if boundary is None:
+            required_polygon = tile.polygon
+        else:
+            required_polygon = intersection(boundary, tile.polygon)
+        # @todo: extract format from given file name
         format = "b3dm"
         payload = {"tiles": tiles,
-                   "polygon": list(tile.polygon.exterior.coords),
-                   "format": format}
-        r = requests.post('http://localhost:8004/editor/combine',
-                          json=payload)
-        with open(file_name + f'.{format}', 'wb') as output:
+                   "polygon": list(required_polygon.exterior.coords),
+                   "format": format,
+                   "buffer_length": -4}
+        r = requests.post('http://localhost:8004/editor/combine', json=payload)
+        p = Path(file_name).parent
+        if not p.exists():
+            p.mkdir(parents=True, exist_ok=True)
+
+        file = Path(file_name)
+        with open(str(file.with_suffix(f'.{format}')), 'wb') as output:
             output.write(r.content)

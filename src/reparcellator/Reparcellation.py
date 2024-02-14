@@ -23,6 +23,8 @@ class Reparcellation:
         self.skip_tile_creation = kwargs['skip_tile_creation'] if 'skip_tile_creation' in kwargs else False
         self.model_polygon = kwargs['model_polygon']
         self.db_path = kwargs['db_path'] if 'db_path' in kwargs else 'c_test_db.db'
+        self.uri_prefix = kwargs['uri_prefix'] if 'uri_prefix' in kwargs else ''
+
         self.db = None
         self.model_cutter = None
         self.simple_model_polygon = None
@@ -48,24 +50,30 @@ class Reparcellation:
         self.simple_model_polygon = SimplePolygon(self.model_polygon, '32636')
         self.extent = self.simple_model_polygon.getExtent()
 
-    def create_all_tiles(self):
+    def create_all_tiles(self, version=0):
         for level in range(self.min_level, self.max_level + 1):
             tiled_extent = TiledExtent.fromExtent(self.extent, level)
             for tile in tiled_extent.tiles():
                 if self.model_polygon.contains(tile.polygon):
-                    self.model_cutter.cut(tile.x, tile.y, tile.z, self.dst + '/' + tile.getName())
-                    self.db.save_tile(tile,  self.dst + '/' + tile.getName())
+                    full_path = self.dst + tile.getFullPath(version)
+                    self.model_cutter.cut(tile.x, tile.y, tile.z, full_path)
+                    self.db.save_tile(tile, full_path)
+                    print(tile.getName())
                 elif self.model_polygon.intersects(tile.polygon):
+                    full_path = self.dst + tile.getFullPath(version)
                     i = self.model_polygon.intersection(tile.polygon)
-                    self.model_cutter.cut(tile.x, tile.y, tile.z, self.dst + '/' + tile.getName())
-                    self.db.save_tile(tile,  self.dst + '/' + tile.getName())
+                    self.model_cutter.cut(tile.x, tile.y, tile.z, full_path, i)
+                    self.db.save_tile(tile, full_path, i.area / tile.polygon.area)
+                    print(tile.getName())
         self.db.close()
-    def tile_to_json(self, tile):
+
+    def tile_to_json(self, tile, version=0, format='b3dm'):
+
         geometricError = 3000
         z_max = 200
         z_min = -200
         region = tile.extent.toRadArray() + [z_min, z_max]
-        uri = tile.getName() + '.b3dm'
+        uri = self.uri_prefix + tile.getFullPath(version, format)
         children = []
 
         if tile.z < self.max_level:
@@ -75,9 +83,9 @@ class Reparcellation:
             for child_tile in tile.children():
                 if tiledPolygon.isTileIn(child_tile):
                     # model_cutter.cut(tile.x, tile.y, tile.z, dst + '/' + tile.getName())
-
-                    if os.path.exists(self.dst + '/' + child_tile.getName() + '.b3dm'):
-                        children.append(self.tile_to_json(child_tile))
+                    full_path = self.dst + child_tile.getFullPath(version, format)
+                    if os.path.exists(full_path):
+                        children.append(self.tile_to_json(child_tile, version, format))
                         print(f"Tile {child_tile.getName()} added")
                     else:
                         print(f"Tile {child_tile.getName()} file not found")
@@ -99,7 +107,7 @@ class Reparcellation:
             "children": children
         }
 
-    def create_root_multiple(self, tiles):
+    def create_root_multiple(self, tiles, version=0, format='b3dm'):
         # @todo: calc geometric error
         genealGeometricError = 3000
         geometricError = 3000
@@ -114,8 +122,9 @@ class Reparcellation:
         region = rad_union_extent.toRadArray() + [z_min, z_max]
         children = []
         for child_tile in tiles:
-            if os.path.exists(self.dst + '/' + child_tile.getName() + '.b3dm'):
-                children.append(self.tile_to_json(child_tile))
+            full_path = self.dst + child_tile.getFullPath(version, format)
+            if os.path.exists(full_path):
+                children.append(self.tile_to_json(child_tile, version, format))
                 print(f"Tile {child_tile.getName()} added")
             else:
                 print(f"Tile {child_tile.getName()} file not found")
@@ -135,7 +144,7 @@ class Reparcellation:
             }
         }
 
-    def create_root(self, tile):
+    def create_root(self, tile, version=0, format='b3dm'):
         # @todo: calc geometric error
         genealGeometricError = 3000
         geometricError = 3000
@@ -146,8 +155,9 @@ class Reparcellation:
         tiledPolygon = TiledPolygon(self.simple_model_polygon, tile.z + 1)
         for child_tile in tile.children():
             if tiledPolygon.isTileIn(child_tile):
-                if os.path.exists(self.dst + '/' + child_tile.getName() + '.b3dm'):
-                    children.append(self.tile_to_json(child_tile))
+                full_path = self.dst + child_tile.getFullPath(version, format)
+                if os.path.exists(full_path):
+                    children.append(self.tile_to_json(child_tile, version, format))
                     print(f"Tile {child_tile.getName()} added")
                 else:
                     print(f"Tile {child_tile.getName()} file not found")
@@ -169,7 +179,7 @@ class Reparcellation:
             }
         }
 
-    def create_tileset_json(self):
+    def create_tileset_json(self, version=0, format='b3dm'):
         tiledPolygon = TiledPolygon(self.simple_model_polygon, self.min_level)
         tiles = list(tiledPolygon.tiles())
 
@@ -180,7 +190,7 @@ class Reparcellation:
         # if not self.skip_tile_creation:
         #     r.create_all_tiles()
 
-        tileset = self.create_root_multiple(tiles)
+        tileset = self.create_root_multiple(tiles, version, format)
         output_tileset = rf'{self.dst}\tileset.json'
         with open(output_tileset, 'w') as f:
             json.dump(tileset, f)

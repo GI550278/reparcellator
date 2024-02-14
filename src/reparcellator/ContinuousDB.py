@@ -1,18 +1,23 @@
 import logging
 import sqlite3
 from datetime import datetime
+from pathlib import Path
 
 from TileScheme.WmtsTile import WmtsTile
 
 
 class ContinuousDB:
     def __init__(self, db_path):
+        p = Path(db_path).parent
+        if not p.exists():
+            p.mkdir(parents=True, exist_ok=True)
+
         self.con = sqlite3.connect(db_path)
         self.cur = self.con.cursor()
     def close(self):
         self.con.close()
     def create_new_db(self):
-        self.cur.execute("CREATE TABLE continuous(time REAL,id TEXT,x INT,y INT,z INT,path TEXT, full_dress INT)")
+        self.cur.execute("CREATE TABLE IF NOT EXISTS continuous(time REAL,id TEXT,x INT,y INT,z INT,path TEXT, full_dress INT)")
         self.con.commit()
 
     def add_tile(self, **kwargs):
@@ -56,13 +61,13 @@ class ContinuousDB:
     def setId(self, id: str):
         self.default_id = id
 
-    def save_tile(self, tile: WmtsTile, path: str):
+    def save_tile(self, tile: WmtsTile, path: str, full_dress=1):
         time_str = self.default_date
         id = self.default_id
         x = tile.x
         y = tile.y
         z = tile.z
-        full_dress = 1
+        full_dress = full_dress
 
         self.cur.execute(f"""
                 INSERT INTO continuous VALUES
