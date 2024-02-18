@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -7,6 +8,7 @@ from datetime import datetime
 from TileScheme.ModelWmtsCutter import ModelWmtsCutter
 from TileScheme.TiledExtent import TiledExtent
 from TileScheme.TiledPolygon import TiledPolygon
+from TileScheme.WmtsTile import WmtsTile
 from meshexchange.SimplePolygon import SimplePolygon
 from reparcellator.ContinuousDB import ContinuousDB
 
@@ -31,6 +33,10 @@ class Reparcellation:
         self.extent = None
         self.min_level = None
         self.max_level = None
+        self.background_tasks = set()
+        self.max_waiting_task = 10
+        self.min_waiting_task = 4
+        # self.initiate()
 
     def initiate(self):
         self.db = ContinuousDB(self.db_path)
@@ -46,26 +52,53 @@ class Reparcellation:
         output_dir = pathlib.Path(self.dst)
         if not output_dir.exists():
             output_dir.mkdir(parents=True, exist_ok=True)
+        if self.model_polygon is None:
+            self.simple_model_polygon = None
+            self.extent = None
+        else:
+            self.simple_model_polygon = SimplePolygon(self.model_polygon, '32636')
+            self.extent = self.simple_model_polygon.getExtent()
 
-        self.simple_model_polygon = SimplePolygon(self.model_polygon, '32636')
-        self.extent = self.simple_model_polygon.getExtent()
+    async def processTile(self, tile, full_path, polygon=None):
+        self.model_cutter.cut(tile.x, tile.y, tile.z, full_path)
+        self.db.save_tile(tile, full_path)
+        print(tile.getName())
 
-    def create_all_tiles(self, version=0):
+    async def create_tiles_in_polygon(self, version=0, onCut=True):
         for level in range(self.min_level, self.max_level + 1):
             tiled_extent = TiledExtent.fromExtent(self.extent, level)
             for tile in tiled_extent.tiles():
                 if self.model_polygon.contains(tile.polygon):
                     full_path = self.dst + tile.getFullPath(version)
-                    self.model_cutter.cut(tile.x, tile.y, tile.z, full_path)
-                    self.db.save_tile(tile, full_path)
-                    print(tile.getName())
+                    i = None
+                    task = asyncio.create_task(self.processTile(tile, full_path, i))
+                    await self.add_task(task)
+                    task.add_done_callback(self.background_tasks.discard)
+                    # self.model_cutter.cut(tile.x, tile.y, tile.z, full_path)
+                    # self.db.save_tile(tile, full_path)
+                    # print(tile.getName())
                 elif self.model_polygon.intersects(tile.polygon):
                     full_path = self.dst + tile.getFullPath(version)
-                    i = self.model_polygon.intersection(tile.polygon)
-                    self.model_cutter.cut(tile.x, tile.y, tile.z, full_path, i)
-                    self.db.save_tile(tile, full_path, i.area / tile.polygon.area)
-                    print(tile.getName())
+                    i = None
+                    if onCut:
+                        i = self.model_polygon.intersection(tile.polygon)
+                    task = asyncio.create_task(self.processTile(tile, full_path, i))
+                    await self.add_task(task)
+                    task.add_done_callback(self.background_tasks.discard)
+
+                    # self.model_cutter.cut(tile.x, tile.y, tile.z, full_path, i)
+                    # self.db.save_tile(tile, full_path, i.area / tile.polygon.area)
+                    # print(tile.getName())
+        while len(self.background_tasks) > 0:
+            task = self.background_tasks.pop()
+            await task
         self.db.close()
+
+    async def add_task(self, task):
+        if len(self.background_tasks) > self.max_waiting_task:
+            while len(self.background_tasks) > self.min_waiting_task:
+                await asyncio.sleep(1)
+        self.background_tasks.add(task)
 
     def tile_to_json(self, tile, version=0, format='b3dm'):
 

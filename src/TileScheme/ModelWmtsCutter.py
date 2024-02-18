@@ -45,6 +45,16 @@ class ModelWmtsCutter:
             if best_original_level == max_original_level:
                 break
 
+    def all_tiles_in_level(self, target_level):
+        # @todo: area can be provided instead of level
+        while target_level > 6:
+            relevant_tiles = self.main_index[(self.main_index.level == target_level)]
+            if relevant_tiles.size > 0:
+                return relevant_tiles
+            else:
+                target_level -= 1
+        return None
+
     def find_relevant_tiles(self, tile):
         # @todo: area can be provided instead of level
 
